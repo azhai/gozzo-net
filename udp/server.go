@@ -25,7 +25,9 @@ func (s *UDPServer) Startup(events network.Events) (err error) {
 
 // 服务停止阶段，关闭每一个网络连接
 func (s *UDPServer) Shutdown(events network.Events) (err error) {
-	s.Cleanup(events)
+	s.Cleanup(func(c *network.Conn) error {
+		return s.Finish(events, c)
+	})
 	return
 }
 
@@ -50,54 +52,8 @@ func (s *UDPServer) Run(events network.Events) (err error) {
 		if err != nil {
 			continue
 		}
-		sess := network.NewSession()
-		c := network.NewUDPConn(conn, sess)
-		if events.Opened != nil {
-			if err = events.Opened(s.Server, c); err != nil {
-				continue
-			}
-		}
-		if events.Process != nil {
-			go events.Process(s.Server, c)
-		} else {
-			go s.ProcessUDP(c, events)
-		}
+		c := network.NewUDPConn(conn)
+		s.Execute(events, c)
 	}
 	return
-}
-
-// 处理单个UDP连接
-func (s *UDPServer) ProcessUDP(c *network.Conn, events network.Events) {
-	defer s.CloseConn(c, events.Closed)
-	// 下行阶段
-	if events.Send != nil {
-		c.ReadOnly = false
-		go func(c *network.Conn) {
-			for data := range c.Output {
-				events.Send(c, data)
-				runtime.Gosched()
-			}
-		}(c)
-	}
-	// 上行阶段
-	if events.Prepare != nil && events.Receive != nil {
-		sid := c.Session.GetId()
-		spliter := events.Prepare(c, sid)
-		if spliter == nil {
-			return
-		}
-		datach := make(chan []byte)
-		go func() {
-			var saved bool
-			for data := range datach {
-				key := events.Receive(c, data, saved)
-				if saved == false && key != "" {
-					s.SaveConn(key, c)
-					saved = true
-				}
-				runtime.Gosched()
-			}
-		}()
-		c.ScanInput(datach, spliter)
-	}
 }

@@ -6,13 +6,13 @@ import (
 
 // UDP Client.
 type UDPClient struct {
-	options  network.UDPOptions
+	options  network.Options
 	dialplan *network.DialPlan
 	Conn     *network.Conn
 }
 
 // 创建UDP客户端
-func NewClient(plan *network.DialPlan, opts network.UDPOptions) *UDPClient {
+func NewClient(plan *network.DialPlan, opts network.Options) *UDPClient {
 	return &UDPClient{dialplan: plan, options: opts}
 }
 
@@ -34,8 +34,8 @@ func (c *UDPClient) SetConn(conn *network.Conn) {
 func (c *UDPClient) Dialing() (*network.Conn, error) {
 	conn, err := c.dialplan.DialUDP()
 	if err == nil && conn != nil {
-		err = c.options.ApplyTo(conn)
-		return network.NewUDPConn(conn, nil), err
+		err = c.options.ApplyConn(conn)
+		return network.NewUDPConn(conn), err
 	}
 	return nil, err
 }

@@ -1,36 +1,47 @@
 package network
 
 import (
-	"bufio"
 	"net"
+	"runtime"
 	"sync"
 	"time"
 )
 
-type PreCloseConn func(r *Registry, c *Conn, err error)
+type CloseFunc func(c *Conn) error
+type ProcessFunc func(s *Server, c *Conn)
 
 // 事件集
 type Events struct {
 	Tick    func(t time.Time)
-	Closed  PreCloseConn
 	Serving func(s *Server)
 	Opened  func(s *Server, c *Conn) error
-	Process func(s *Server, c *Conn)
-	Prepare func(c *Conn, sid string) bufio.SplitFunc
+	Closed  func(s *Server, c *Conn, err error)
+	Process ProcessFunc
+	Prepare func(c *Conn, input chan<- []byte) error
 	Receive func(c *Conn, data []byte, saved bool) string
 	Send    func(c *Conn, data []byte)
 }
 
 // 网络连接集合
 type Registry struct {
-	conns sync.Map
+	counter int
+	conns   sync.Map
+}
+
+func (r Registry) Count() int {
+	return r.counter
 }
 
 // 删除所有网络连接
-func (r Registry) Cleanup(events Events) {
+func (r Registry) Cleanup(closer CloseFunc) {
+	r.counter = 0
 	r.conns.Range(func(key, value interface{}) bool {
 		if c, ok := value.(*Conn); ok {
-			r.CloseConn(c, events.Closed)
+			if closer != nil {
+				closer(c)
+			} else {
+				r.CloseConn(c)
+			}
 			r.conns.Delete(key.(string))
 		}
 		return true // 继续执行下一个
@@ -38,11 +49,8 @@ func (r Registry) Cleanup(events Events) {
 }
 
 // 关闭网络连接，先执行Closed事件
-func (r Registry) CloseConn(c *Conn, pcc PreCloseConn) (err error) {
+func (r Registry) CloseConn(c *Conn) (err error) {
 	if c != nil {
-		if pcc != nil {
-			pcc(&r, c, c.LastError)
-		}
 		err = c.Close()
 	}
 	return
@@ -58,10 +66,27 @@ func (r Registry) LoadConn(key string) *Conn {
 	return nil
 }
 
+func (r Registry) RemoveConn(key string, close bool) bool {
+	if value, ok := r.conns.Load(key); ok {
+		if close {
+			if c, succ := value.(*Conn); succ {
+				c.Close()
+			}
+		}
+		r.counter--
+		r.conns.Delete(key)
+		return true
+	}
+	return false
+}
+
 // 保存网络连接，key一般是设备（唯一）ID
 func (r Registry) SaveConn(key string, c *Conn) bool {
 	if key == "" {
 		return false
+	}
+	if _, ok := r.conns.Load(key); !ok {
+		r.counter++
 	}
 	r.conns.Store(key, c)
 	return true
@@ -69,44 +94,88 @@ func (r Registry) SaveConn(key string, c *Conn) bool {
 
 // 同一个设备，旧连接将被新连接覆盖（会话ID不一样）
 func (r Registry) IsOverride(key string, c *Conn) bool {
+	var sid string
+	if sid = c.GetSessId(); sid == "" {
+		return false
+	}
 	if old := r.LoadConn(key); old != nil {
-		sid := c.Session.GetId()
-		return old.Session.GetId() != sid
+		return old.GetSessId() != sid
 	}
 	return false
 }
 
 // 服务器
 type Server struct {
-	Address  net.Addr
-	TickMsec int
+	Address net.Addr
+	Ticker  <-chan time.Time
 	Registry
 }
 
 // 创建TCP服务器
-func NewServer(host string, port uint16, tick int) *Server {
+func NewServer(host string, port uint16) *Server {
 	addr, _ := NewTCPAddr(host, port)
-	return &Server{Address: addr, TickMsec: tick}
+	return &Server{Address: addr}
 }
 
 // 创建TCP服务器
-func NewAddrServer(addr net.Addr, tick int) *Server {
-	return &Server{Address: addr, TickMsec: tick}
+func NewAddrServer(addr net.Addr) *Server {
+	return &Server{Address: addr}
+}
+
+func (s *Server) SaveConnWithKey(c *Conn, key, prefix string) string {
+	if key == "" {
+		if c.Session == nil {
+			c.Session = NewSession()
+		}
+		key = c.Session.GetId()
+	}
+	s.SaveConn(prefix+key, c)
+	return key
+}
+
+func (s *Server) SetTickMicroSec(msecs int) {
+	if msecs > 0 {
+		t := time.Duration(msecs) * time.Millisecond
+		s.Ticker = time.Tick(t)
+	}
 }
 
 // 执行Tick事件
 func (s *Server) Trigger(events Events) {
-	if events.Tick != nil && s.TickMsec > 0 {
-		msecs := time.Duration(s.TickMsec)
-		go func(msecs time.Duration) {
-			ticker := time.Tick(msecs * time.Millisecond)
-			for t := range ticker {
+	if events.Tick != nil && s.Ticker != nil {
+		go func() {
+			for t := range s.Ticker {
 				events.Tick(t)
 			}
-		}(msecs)
+		}()
 	}
 }
 
+func (s *Server) Execute(events Events, c *Conn) {
+	if events.Opened != nil {
+		if err := events.Opened(s, c); err != nil {
+			return
+		}
+	}
+	go func() {
+		defer s.Finish(events, c)
+		if events.Process != nil {
+			events.Process(s, c)
+		} else {
+			s.Process(events, c)
+		}
+	}()
+}
+
+// 关闭客户端
+func (s *Server) Finish(events Events, c *Conn) error {
+	if events.Closed != nil {
+		events.Closed(s, c, c.LastError)
+	}
+	return s.CloseConn(c)
+}
+
+// 根据设备id下发数据
 func (s *Server) SendTo(key string, data []byte) bool {
 	if c := s.LoadConn(key); c != nil {
 		if c.ReadOnly == false {
@@ -115,4 +184,34 @@ func (s *Server) SendTo(key string, data []byte) bool {
 		return true
 	}
 	return false
+}
+
+// 处理单个连接
+func (s *Server) Process(events Events, c *Conn) {
+	// 下行阶段
+	if events.Send != nil {
+		c.ReadOnly = false
+		go func(c *Conn) {
+			for data := range c.Output {
+				events.Send(c, data)
+				runtime.Gosched()
+			}
+		}(c)
+	}
+	// 上行阶段
+	if events.Prepare != nil && events.Receive != nil {
+		datach := make(chan []byte)
+		go func() {
+			var saved bool
+			for data := range datach {
+				key := events.Receive(c, data, saved)
+				if saved == false && key != "" {
+					s.SaveConn(key, c)
+					saved = true
+				}
+				runtime.Gosched()
+			}
+		}()
+		c.LastError = events.Prepare(c, datach)
+	}
 }

@@ -91,3 +91,11 @@ func (dp *DialPlan) DialUDP() (*net.UDPConn, error) {
 	}
 	return nil, err
 }
+
+func (dp *DialPlan) SetRemote(host string, port uint16) error {
+	addr, err := NewTCPAddr(host, port)
+	if err == nil {
+		dp.RemoteAddr = addr
+	}
+	return err
+}

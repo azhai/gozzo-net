@@ -34,8 +34,8 @@ func (c *TCPClient) SetConn(conn *network.Conn) {
 func (c *TCPClient) Dialing() (*network.Conn, error) {
 	conn, err := c.dialplan.DialTCP()
 	if err == nil && conn != nil {
-		err = c.options.ApplyTo(conn)
-		return network.NewTCPConn(conn, nil), err
+		err = c.options.ApplyTCP(conn)
+		return network.NewTCPConn(conn), err
 	}
 	return nil, err
 }

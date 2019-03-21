@@ -20,10 +20,8 @@ func NewServer(server *network.Server) *TCPServer {
 
 // 服务启动阶段，执行Tick事件
 func (s *TCPServer) Startup(events network.Events) (err error) {
-	var (
-		addr     = network.GetTCPAddr(s.Address)
-		listener net.Listener
-	)
+	var listener net.Listener
+	addr := network.GetTCPAddr(s.Address)
 	listener, err = ListenTCP(addr.String())
 	if err != nil {
 		return
@@ -40,7 +38,9 @@ func (s *TCPServer) Shutdown(events network.Events) (err error) {
 			return
 		}
 	}
-	s.Cleanup(events)
+	s.Cleanup(func(c *network.Conn) error {
+		return s.Finish(events, c)
+	})
 	return
 }
 
@@ -62,54 +62,8 @@ func (s *TCPServer) Run(events network.Events) (err error) {
 		if err != nil {
 			continue
 		}
-		sess := network.NewSession()
-		c := network.NewTCPConn(conn, sess)
-		if events.Opened != nil {
-			if err = events.Opened(s.Server, c); err != nil {
-				continue
-			}
-		}
-		if events.Process != nil {
-			go events.Process(s.Server, c)
-		} else {
-			go s.ProcessTCP(c, events)
-		}
+		c := network.NewTCPConn(conn)
+		s.Execute(events, c)
 	}
 	return
-}
-
-// 处理单个TCP连接
-func (s *TCPServer) ProcessTCP(c *network.Conn, events network.Events) {
-	defer s.CloseConn(c, events.Closed)
-	// 下行阶段
-	if events.Send != nil {
-		c.ReadOnly = false
-		go func(c *network.Conn) {
-			for data := range c.Output {
-				events.Send(c, data)
-				runtime.Gosched()
-			}
-		}(c)
-	}
-	// 上行阶段
-	if events.Prepare != nil && events.Receive != nil {
-		sid := c.Session.GetId()
-		spliter := events.Prepare(c, sid)
-		if spliter == nil {
-			return
-		}
-		datach := make(chan []byte)
-		go func() {
-			var saved bool
-			for data := range datach {
-				key := events.Receive(c, data, saved)
-				if saved == false && key != "" {
-					s.SaveConn(key, c)
-					saved = true
-				}
-				runtime.Gosched()
-			}
-		}()
-		c.ScanInput(datach, spliter)
-	}
 }
