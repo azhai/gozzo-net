@@ -4,8 +4,9 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
-	"sync"
 	"time"
+
+	"github.com/azhai/gozzo-utils/metrics"
 )
 
 // 获取所有局域网IP，除了127.0.0.1，未排序
@@ -26,31 +27,42 @@ func GetLocalAddrs() (result []*net.IPNet) {
 }
 
 // 局域网IP的循环列表
-type LocalAddrGroup struct {
-	pointer    int
-	mutex      *sync.RWMutex
+type LocalAddrRing struct {
+	ring       *metrics.Ring
 	LocalAddrs []*net.IPNet
+	TCPAddrs   []*net.TCPAddr
 }
 
-func NewLocalAddrGroup() *LocalAddrGroup {
-	return &LocalAddrGroup{
-		mutex:      new(sync.RWMutex),
-		LocalAddrs: GetLocalAddrs(),
+func NewLocalAddrRing() *LocalAddrRing {
+	addrs := GetLocalAddrs()
+	return &LocalAddrRing{
+		ring:       metrics.NewRing(len(addrs)),
+		LocalAddrs: addrs,
 	}
 }
 
-func (g *LocalAddrGroup) NextAddr() (addr *net.IPNet) {
-	var size int
-	if size = len(g.LocalAddrs); size == 0 {
-		return
+func (r *LocalAddrRing) Translate(i, stop int) {
+	for i <= stop {
+		addr := &net.TCPAddr{IP: r.LocalAddrs[i].IP}
+		r.TCPAddrs = append(r.TCPAddrs, addr)
+		i++
 	}
-	g.mutex.RLock()
-	if g.pointer >= size {
-		g.pointer = 0
+}
+
+func (r *LocalAddrRing) NextAddr() (addr *net.IPNet) {
+	if curr := r.Next(); curr >= 0 {
+		addr = r.LocalAddrs[curr]
 	}
-	addr = g.LocalAddrs[g.pointer]
-	g.pointer++
-	g.mutex.RUnlock()
+	return
+}
+
+func (r *LocalAddrRing) NextTCPAddr() (addr *net.TCPAddr) {
+	if curr := r.Next(); curr >= 0 {
+		if i := len(r.TCPAddrs); i <= curr {
+			r.Translate(i, curr)
+		}
+		addr = r.TCPAddrs[curr]
+	}
 	return
 }
 

@@ -1,14 +1,16 @@
 package network
 
 import (
+	"fmt"
 	"net"
 	"time"
 )
 
 // 根据IP和端口创建TCP地址
 func NewTCPAddr(host string, port uint16) *net.TCPAddr {
-	if ip := net.ParseIP(host); ip != nil {
-		return &net.TCPAddr{IP: ip, Port: int(port) % 65536}
+	address := fmt.Sprintf("%s:%d", host, port)
+	if addr, err := net.ResolveTCPAddr("tcp", address); err == nil {
+		return addr
 	}
 	return nil
 }
