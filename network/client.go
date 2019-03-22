@@ -50,14 +50,14 @@ func (r *LocalAddrRing) Translate(i, stop int) {
 }
 
 func (r *LocalAddrRing) NextAddr() (addr *net.IPNet) {
-	if curr := r.Next(); curr >= 0 {
+	if curr := r.ring.Next(); curr >= 0 {
 		addr = r.LocalAddrs[curr]
 	}
 	return
 }
 
 func (r *LocalAddrRing) NextTCPAddr() (addr *net.TCPAddr) {
-	if curr := r.Next(); curr >= 0 {
+	if curr := r.ring.Next(); curr >= 0 {
 		if i := len(r.TCPAddrs); i <= curr {
 			r.Translate(i, curr)
 		}
