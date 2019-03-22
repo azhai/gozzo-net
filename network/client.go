@@ -9,8 +9,7 @@ import (
 )
 
 // 获取所有局域网IP，除了127.0.0.1，未排序
-func GetLocalAddrs() []net.Addr {
-	var result []net.Addr
+func GetLocalAddrs() (result []*net.IPNet) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return result
@@ -20,7 +19,7 @@ func GetLocalAddrs() []net.Addr {
 			if ip.IP.IsLoopback() || ip.IP.To4() == nil {
 				continue
 			}
-			result = append(result, addr)
+			result = append(result, ip)
 		}
 	}
 	return result
@@ -30,7 +29,7 @@ func GetLocalAddrs() []net.Addr {
 type LocalAddrGroup struct {
 	pointer    int
 	mutex      *sync.RWMutex
-	LocalAddrs []net.Addr
+	LocalAddrs []*net.IPNet
 }
 
 func NewLocalAddrGroup() *LocalAddrGroup {
@@ -40,7 +39,7 @@ func NewLocalAddrGroup() *LocalAddrGroup {
 	}
 }
 
-func (g *LocalAddrGroup) NextAddr() (addr net.Addr) {
+func (g *LocalAddrGroup) NextAddr() (addr *net.IPNet) {
 	var size int
 	if size = len(g.LocalAddrs); size == 0 {
 		return
