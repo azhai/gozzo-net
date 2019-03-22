@@ -12,10 +12,10 @@ type IRouter interface {
 	Dispatch(c *network.Conn) *network.DialPlan
 }
 
-type ProxyAction func(serv *network.Server, orig, relay *network.Conn)
+type ProxyAction func(p *Proxy, orig, relay *network.Conn)
 
 // 原样复制输入和输出
-func RelayData(serv *network.Server, orig, relay *network.Conn) {
+func RelayData(p *Proxy, orig, relay *network.Conn) {
 	defer relay.Close()
 	go io.Copy(relay.GetRawConn(), orig.GetReader()) // 复制上报数据
 	io.Copy(orig.GetRawConn(), relay.GetReader())    // 复制服务端回应
@@ -53,7 +53,7 @@ func (p *Proxy) CreateProcess(router IRouter, action ProxyAction) network.Proces
 		client := NewClient(dp, p.Options)
 		network.Reconnect(client, true, 3)
 		if conn := client.GetConn(); conn != nil {
-			action(s, c, conn)
+			action(p, c, conn)
 		}
 	}
 }

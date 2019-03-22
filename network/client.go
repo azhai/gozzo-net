@@ -3,8 +3,57 @@ package network
 import (
 	"io"
 	"io/ioutil"
+	"net"
+	"sync"
 	"time"
 )
+
+// 获取所有局域网IP，除了127.0.0.1，未排序
+func GetLocalAddrs() []net.Addr {
+	var result []net.Addr
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return result
+	}
+	for _, addr := range addrs {
+		if ip, ok := addr.(*net.IPNet); ok {
+			if ip.IP.IsLoopback() || ip.IP.To4() == nil {
+				continue
+			}
+			result = append(result, addr)
+		}
+	}
+	return result
+}
+
+// 局域网IP的循环列表
+type LocalAddrGroup struct {
+	pointer    int
+	mutex      *sync.RWMutex
+	LocalAddrs []net.Addr
+}
+
+func NewLocalAddrGroup() *LocalAddrGroup {
+	return &LocalAddrGroup{
+		mutex:      new(sync.RWMutex),
+		LocalAddrs: GetLocalAddrs(),
+	}
+}
+
+func (g *LocalAddrGroup) NextAddr() (addr net.Addr) {
+	var size int
+	if size = len(g.LocalAddrs); size == 0 {
+		return
+	}
+	g.mutex.RLock()
+	if g.pointer >= size {
+		g.pointer = 0
+	}
+	addr = g.LocalAddrs[g.pointer]
+	g.pointer++
+	g.mutex.RUnlock()
+	return
+}
 
 type IClient interface {
 	GetConn() *Conn

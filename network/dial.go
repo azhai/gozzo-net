@@ -1,15 +1,16 @@
 package network
 
 import (
-	"fmt"
 	"net"
 	"time"
 )
 
 // 根据IP和端口创建TCP地址
-func NewTCPAddr(host string, port uint16) (*net.TCPAddr, error) {
-	address := fmt.Sprintf("%s:%d", host, port)
-	return net.ResolveTCPAddr("tcp", address)
+func NewTCPAddr(host string, port uint16) *net.TCPAddr {
+	if ip := net.ParseIP(host); ip != nil {
+		return &net.TCPAddr{IP: ip, Port: int(port) % 65536}
+	}
+	return nil
 }
 
 // 将网络地址转为TCP地址
@@ -92,10 +93,6 @@ func (dp *DialPlan) DialUDP() (*net.UDPConn, error) {
 	return nil, err
 }
 
-func (dp *DialPlan) SetRemote(host string, port uint16) error {
-	addr, err := NewTCPAddr(host, port)
-	if err == nil {
-		dp.RemoteAddr = addr
-	}
-	return err
+func (dp *DialPlan) SetRemote(host string, port uint16) {
+	dp.RemoteAddr = NewTCPAddr(host, port)
 }

@@ -24,36 +24,22 @@ type Events struct {
 
 // 网络连接集合
 type Registry struct {
-	counter int
-	conns   sync.Map
-}
-
-func (r Registry) Count() int {
-	return r.counter
+	conns sync.Map
 }
 
 // 删除所有网络连接
 func (r Registry) Cleanup(closer CloseFunc) {
-	r.counter = 0
 	r.conns.Range(func(key, value interface{}) bool {
 		if c, ok := value.(*Conn); ok {
 			if closer != nil {
 				closer(c)
+				r.conns.Delete(key.(string))
 			} else {
-				r.CloseConn(c)
+				r.CloseConn(c, key.(string))
 			}
-			r.conns.Delete(key.(string))
 		}
 		return true // 继续执行下一个
 	})
-}
-
-// 关闭网络连接，先执行Closed事件
-func (r Registry) CloseConn(c *Conn) (err error) {
-	if c != nil {
-		err = c.Close()
-	}
-	return
 }
 
 // 获取网络连接，key一般是设备（唯一）ID
@@ -66,40 +52,32 @@ func (r Registry) LoadConn(key string) *Conn {
 	return nil
 }
 
-func (r Registry) RemoveConn(key string, close bool) bool {
-	if value, ok := r.conns.Load(key); ok {
-		if close {
-			if c, succ := value.(*Conn); succ {
-				c.Close()
-			}
-		}
-		r.counter--
-		r.conns.Delete(key)
+// 保存网络连接，key一般是设备（唯一）ID
+func (r Registry) SaveConn(c *Conn, key string) bool {
+	if key != "" {
+		r.conns.Store(key, c)
 		return true
 	}
 	return false
 }
 
-// 保存网络连接，key一般是设备（唯一）ID
-func (r Registry) SaveConn(key string, c *Conn) bool {
-	if key == "" {
-		return false
+// 关闭网络连接，先执行Closed事件
+func (r Registry) CloseConn(c *Conn, key string) (err error) {
+	if c != nil {
+		if key != "" {
+			r.conns.Delete(key)
+		}
+		err = c.Close()
 	}
-	if _, ok := r.conns.Load(key); !ok {
-		r.counter++
-	}
-	r.conns.Store(key, c)
-	return true
+	return
 }
 
 // 同一个设备，旧连接将被新连接覆盖（会话ID不一样）
-func (r Registry) IsOverride(key string, c *Conn) bool {
-	var sid string
-	if sid = c.GetSessId(); sid == "" {
-		return false
-	}
-	if old := r.LoadConn(key); old != nil {
-		return old.GetSessId() != sid
+func (r Registry) IsOverride(c *Conn, key string) bool {
+	if sid := c.GetSessId(); sid != "" {
+		if old := r.LoadConn(key); old != nil {
+			return old.GetSessId() != sid
+		}
 	}
 	return false
 }
@@ -113,24 +91,12 @@ type Server struct {
 
 // 创建TCP服务器
 func NewServer(host string, port uint16) *Server {
-	addr, _ := NewTCPAddr(host, port)
-	return &Server{Address: addr}
+	return &Server{Address: NewTCPAddr(host, port)}
 }
 
 // 创建TCP服务器
 func NewAddrServer(addr net.Addr) *Server {
 	return &Server{Address: addr}
-}
-
-func (s *Server) SaveConnWithKey(c *Conn, key, prefix string) string {
-	if key == "" {
-		if c.Session == nil {
-			c.Session = NewSession()
-		}
-		key = c.Session.GetId()
-	}
-	s.SaveConn(prefix+key, c)
-	return key
 }
 
 func (s *Server) SetTickMicroSec(msecs int) {
@@ -172,7 +138,7 @@ func (s *Server) Finish(events Events, c *Conn) error {
 	if events.Closed != nil {
 		events.Closed(s, c, c.LastError)
 	}
-	return s.CloseConn(c)
+	return s.CloseConn(c, c.GetSessId())
 }
 
 // 根据设备id下发数据
@@ -206,7 +172,7 @@ func (s *Server) Process(events Events, c *Conn) {
 			for data := range datach {
 				key := events.Receive(c, data, saved)
 				if saved == false && key != "" {
-					s.SaveConn(key, c)
+					s.SaveConn(c, key)
 					saved = true
 				}
 				runtime.Gosched()

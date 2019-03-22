@@ -1,4 +1,4 @@
-// +build linux darwin dragonfly freebsd netbsd openbsd windows
+// +build linux darwin dragonfly freebsd netbsd openbsd
 
 // Copyright (C) 2017 Max Riveiro
 //
