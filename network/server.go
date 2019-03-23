@@ -8,6 +8,7 @@ import (
 )
 
 type CloseFunc func(c *Conn) error
+type EachFunc func(k string, c *Conn) bool
 type ProcessFunc func(s *Server, c *Conn)
 
 // 事件集
@@ -27,23 +28,32 @@ type Registry struct {
 	conns sync.Map
 }
 
-// 删除所有网络连接
-func (r Registry) Cleanup(closer CloseFunc) {
+// 遍历所有item
+func (r *Registry) Each(op EachFunc) {
 	r.conns.Range(func(key, value interface{}) bool {
+		var next bool
 		if c, ok := value.(*Conn); ok {
-			if closer != nil {
-				closer(c)
-				r.conns.Delete(key.(string))
-			} else {
-				r.CloseConn(c, key.(string))
-			}
+			next = op(key.(string), c)
+		}
+		return next // 为true时继续执行下一个，否则中断
+	})
+}
+
+// 删除所有网络连接
+func (r *Registry) Cleanup(closer CloseFunc) {
+	r.Each(func(k string, c *Conn) bool {
+		if closer != nil {
+			closer(c)
+			r.conns.Delete(k)
+		} else {
+			r.CloseConn(c, k)
 		}
 		return true // 继续执行下一个
 	})
 }
 
 // 获取网络连接，key一般是设备（唯一）ID
-func (r Registry) LoadConn(key string) *Conn {
+func (r *Registry) LoadConn(key string) *Conn {
 	if value, ok := r.conns.Load(key); ok {
 		if c, ok := value.(*Conn); ok {
 			return c
@@ -53,7 +63,7 @@ func (r Registry) LoadConn(key string) *Conn {
 }
 
 // 保存网络连接，key一般是设备（唯一）ID
-func (r Registry) SaveConn(c *Conn, key string) bool {
+func (r *Registry) SaveConn(c *Conn, key string) bool {
 	if key != "" {
 		r.conns.Store(key, c)
 		return true
@@ -62,7 +72,7 @@ func (r Registry) SaveConn(c *Conn, key string) bool {
 }
 
 // 关闭网络连接，先执行Closed事件
-func (r Registry) CloseConn(c *Conn, key string) (err error) {
+func (r *Registry) CloseConn(c *Conn, key string) (err error) {
 	if c != nil {
 		if key != "" {
 			r.conns.Delete(key)
@@ -73,7 +83,7 @@ func (r Registry) CloseConn(c *Conn, key string) (err error) {
 }
 
 // 同一个设备，旧连接将被新连接覆盖（会话ID不一样）
-func (r Registry) IsOverride(c *Conn, key string) bool {
+func (r *Registry) IsOverride(c *Conn, key string) bool {
 	if sid := c.GetSessId(); sid != "" {
 		if old := r.LoadConn(key); old != nil {
 			return old.GetSessId() != sid
@@ -86,17 +96,18 @@ func (r Registry) IsOverride(c *Conn, key string) bool {
 type Server struct {
 	Address net.Addr
 	Ticker  <-chan time.Time
-	Registry
+	*Registry
 }
 
 // 创建TCP服务器
 func NewServer(host string, port uint16) *Server {
-	return &Server{Address: NewTCPAddr(host, port)}
+	addr := NewTCPAddr(host, port)
+	return NewAddrServer(addr)
 }
 
 // 创建TCP服务器
 func NewAddrServer(addr net.Addr) *Server {
-	return &Server{Address: addr}
+	return &Server{Address: addr, Registry: new(Registry)}
 }
 
 func (s *Server) SetTickMicroSec(msecs int) {
