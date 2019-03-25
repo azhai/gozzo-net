@@ -100,6 +100,10 @@ func NewUDPConn(conn *net.UDPConn) *Conn {
 	return newConn("udp", conn, conn != nil)
 }
 
+func NewUnixConn(conn *net.UnixConn) *Conn {
+	return newConn("unix", conn, conn != nil)
+}
+
 func (c *Conn) Close() error {
 	if c.IsActive {
 		c.IsActive = false

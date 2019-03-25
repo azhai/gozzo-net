@@ -30,7 +30,16 @@ func GetUDPAddr(addr net.Addr) (udpAddr *net.UDPAddr) {
 	if addr.Network() == "udp" {
 		udpAddr = addr.(*net.UDPAddr)
 	} else {
-		udpAddr, _ = net.ResolveUDPAddr("tcp", addr.String())
+		udpAddr, _ = net.ResolveUDPAddr("udp", addr.String())
+	}
+	return
+}
+
+// 将文件名转为Unix socket地址
+func NewUnixAddr(filename string) (addr *net.UnixAddr) {
+	addr, err := net.ResolveUnixAddr("unix", filename)
+	if err != nil {
+		panic(err)
 	}
 	return
 }
@@ -95,6 +104,24 @@ func (dp *DialPlan) DialUDP() (*net.UDPConn, error) {
 	return nil, err
 }
 
-func (dp *DialPlan) SetRemote(host string, port uint16) {
+// 拨号得到Unix连接
+func (dp *DialPlan) DialUnix() (*net.UnixConn, error) {
+	if dp.Timeout <= 0 {
+		laddr := dp.LocalAddr.(*net.UnixAddr)
+		addr := dp.RemoteAddr.(*net.UnixAddr)
+		return net.DialUnix("unix", laddr, addr)
+	}
+	conn, err := dp.Dial("unix")
+	if err == nil {
+		return conn.(*net.UnixConn), err
+	}
+	return nil, err
+}
+
+func (dp *DialPlan) SetPortRemote(host string, port uint16) {
 	dp.RemoteAddr = NewTCPAddr(host, port)
+}
+
+func (dp *DialPlan) SetUnixRemote(filename string) {
+	dp.RemoteAddr = NewUnixAddr(filename)
 }

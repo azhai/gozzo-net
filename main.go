@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/azhai/gozzo-net/network"
-	"github.com/azhai/gozzo-net/tcp"
+	"github.com/azhai/gozzo-net/unix"
 )
 
 var (
@@ -32,13 +32,8 @@ func init() {
 
 // 创建代理
 func main() {
-	proxy := tcp.NewProxy("", uint16(sport))
-	addr, err := network.NewTCPAddr(dhost, uint16(dport))
-	if err != nil {
-		fmt.Errorf(err.Error())
-		return
-	}
-	proxy.RemoteAddr = addr
+	proxy := unix.NewProxy("tcp", "", uint16(sport))
+	proxy.RemoteAddr = network.NewTCPAddr(dhost, uint16(dport))
 	events := network.Events{}
 	proxy.Run("tcp", events)
 }

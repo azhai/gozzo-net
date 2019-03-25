@@ -4,7 +4,7 @@ import (
 	"github.com/azhai/gozzo-net/network"
 )
 
-// TCP Client.
+// TCP 客户端
 type TCPClient struct {
 	options  network.TCPOptions
 	dialplan *network.DialPlan

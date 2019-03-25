@@ -99,15 +99,21 @@ type Server struct {
 	*Registry
 }
 
-// 创建TCP服务器
-func NewServer(host string, port uint16) *Server {
+// 创建服务器
+func NewAddrServer(addr net.Addr) *Server {
+	return &Server{Address: addr, Registry: new(Registry)}
+}
+
+// 创建TCP/UDP服务器
+func NewPortServer(host string, port uint16) *Server {
 	addr := NewTCPAddr(host, port)
 	return NewAddrServer(addr)
 }
 
-// 创建TCP服务器
-func NewAddrServer(addr net.Addr) *Server {
-	return &Server{Address: addr, Registry: new(Registry)}
+// 创建unix socket服务器
+func NewUnixServer(filename string) *Server {
+	addr := NewUnixAddr(filename)
+	return NewAddrServer(addr)
 }
 
 func (s *Server) SetTickMicroSec(msecs int) {

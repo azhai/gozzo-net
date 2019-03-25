@@ -4,7 +4,7 @@ import (
 	"github.com/azhai/gozzo-net/network"
 )
 
-// UDP Client.
+// UDP 客户端
 type UDPClient struct {
 	options  network.Options
 	dialplan *network.DialPlan
