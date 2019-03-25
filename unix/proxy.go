@@ -13,10 +13,24 @@ type IRouter interface {
 	Dispatch(c *network.Conn) *network.DialPlan
 }
 
-type ProxyAction func(p *Proxy, orig, relay *network.Conn)
+type Relayer struct {
+	*network.DialPlan
+}
+
+func NewRelayer(addr net.Addr) *Relayer {
+	return &Relayer{
+		DialPlan: network.NewDialPlan(addr, nil, 10),
+	}
+}
+
+func (r *Relayer) Dispatch(c *network.Conn) *network.DialPlan {
+	return r.DialPlan
+}
+
+type ProxyAction func(s *network.Server, orig, relay *network.Conn)
 
 // 原样复制输入和输出
-func RelayData(p *Proxy, orig, relay *network.Conn) {
+func RelayData(s *network.Server, orig, relay *network.Conn) {
 	defer relay.Close()
 	go io.Copy(relay.GetRawConn(), orig.GetReader()) // 复制上报数据
 	io.Copy(orig.GetRawConn(), relay.GetReader())    // 复制服务端回应
@@ -26,7 +40,6 @@ func RelayData(p *Proxy, orig, relay *network.Conn) {
 type Proxy struct {
 	kind       string
 	Options    network.TCPOptions
-	RemoteAddr net.Addr
 	*network.Server
 }
 
@@ -40,13 +53,6 @@ func NewProxy(kind, host string, port uint16) *Proxy {
 		serv = network.NewUnixServer(host)
 	}
 	return &Proxy{kind: kind, Options: opts, Server: serv}
-}
-
-func (p *Proxy) Dispatch(c *network.Conn) *network.DialPlan {
-	if p.RemoteAddr == nil {
-		return nil
-	}
-	return network.NewDialPlan(p.RemoteAddr, nil, 10)
 }
 
 func (p *Proxy) CreateClient(dp *network.DialPlan) (client network.IClient) {
@@ -68,17 +74,15 @@ func (p *Proxy) CreateProcess(router IRouter, action ProxyAction) network.Proces
 		}
 		// 创建客户端，连接到真正的服务器
 		client := p.CreateClient(dp)
+		defer client.Close()
 		network.Reconnect(client, true, 3)
 		if conn := client.GetConn(); conn != nil {
-			action(p, c, conn)
+			action(s, c, conn)
 		}
 	}
 }
 
 func (p *Proxy) Run(kind string, events network.Events) (err error) {
-	if events.Process == nil && events.Receive == nil && events.Send == nil {
-		events.Process = p.CreateProcess(p, RelayData)
-	}
 	if kind == "udp" {
 		err = udp.NewServer(p.Server).Run(events)
 	} else {

@@ -70,6 +70,7 @@ type IClient interface {
 	GetConn() *Conn
 	SetConn(conn *Conn)
 	Dialing() (*Conn, error)
+	Close() error
 }
 
 // 按需重连服务端

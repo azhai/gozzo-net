@@ -22,10 +22,9 @@ func NewServer(server *network.Server) *TCPServer {
 func (s *TCPServer) Startup(events network.Events) (err error) {
 	addr := network.GetTCPAddr(s.Address)
 	s.listener, err = ListenTCP(addr.String())
-	if err != nil {
-		return
+	if err == nil {
+		s.Trigger(events)
 	}
-	s.Trigger(events)
 	return
 }
 

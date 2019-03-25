@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -33,7 +32,8 @@ func init() {
 // 创建代理
 func main() {
 	proxy := unix.NewProxy("tcp", "", uint16(sport))
-	proxy.RemoteAddr = network.NewTCPAddr(dhost, uint16(dport))
+	addr := network.NewTCPAddr(dhost, uint16(dport))
 	events := network.Events{}
+	events.Process = proxy.CreateProcess(unix.NewRelayer(addr), unix.RelayData)
 	proxy.Run("tcp", events)
 }

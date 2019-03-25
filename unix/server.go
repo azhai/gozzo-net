@@ -3,6 +3,7 @@
 package unix
 
 import (
+	"fmt"
 	"net"
 	"runtime"
 
@@ -22,11 +23,14 @@ func NewServer(server *network.Server) *UnixServer {
 
 // 服务启动阶段，执行Tick事件
 func (s *UnixServer) Startup(events network.Events) (err error) {
-	s.listener, err = net.ListenUnix("unix", s.Address)
-	if err != nil {
-		return
+	if addr, ok := s.Address.(*net.UnixAddr); ok {
+		s.listener, err = net.ListenUnix("unix", addr)
+	} else {
+		err = fmt.Errorf("The address is not a UnixAddr object")
 	}
-	s.Trigger(events)
+	if err == nil {
+		s.Trigger(events)
+	}
 	return
 }
 
