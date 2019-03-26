@@ -5,9 +5,11 @@ package unix
 import (
 	"fmt"
 	"net"
+	"os"
 	"runtime"
 
 	"github.com/azhai/gozzo-net/network"
+	"github.com/azhai/gozzo-utils/common"
 )
 
 // Unix socket 服务器
@@ -37,13 +39,15 @@ func (s *UnixServer) Startup(events network.Events) (err error) {
 // 服务停止阶段，关闭每一个网络连接
 func (s *UnixServer) Shutdown(events network.Events) (err error) {
 	if s.listener != nil {
-		if err = s.listener.Close(); err != nil {
-			return
-		}
+		err = s.listener.Close()
 	}
 	s.Cleanup(func(c *network.Conn) error {
 		return s.Finish(events, c)
 	})
+	filename := s.Server.Address.String()
+	if _, exists := common.FileSize(filename); exists {
+		err = os.Remove(filename)
+	}
 	return
 }
 

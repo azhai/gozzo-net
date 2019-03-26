@@ -1,7 +1,10 @@
 package unix
 
 import (
+	"os"
+
 	"github.com/azhai/gozzo-net/network"
+	"github.com/azhai/gozzo-utils/common"
 )
 
 // Unix socket 客户端.
@@ -17,10 +20,15 @@ func NewClient(plan *network.DialPlan, opts network.Options) *UnixClient {
 }
 
 func (c *UnixClient) Close() error {
-	if c.Conn == nil {
-		return nil
+	var err error
+	if c.Conn != nil {
+		err = c.Conn.Close()
 	}
-	return c.Conn.Close()
+	filename := c.dialplan.LocalAddr.String()
+	if _, exists := common.FileSize(filename); exists {
+		err = os.Remove(filename)
+	}
+	return err
 }
 
 func (c *UnixClient) GetConn() *network.Conn {
