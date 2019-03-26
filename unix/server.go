@@ -27,6 +27,7 @@ func NewServer(server *network.Server) *UnixServer {
 func (s *UnixServer) Startup(events network.Events) (err error) {
 	if addr, ok := s.Address.(*net.UnixAddr); ok {
 		s.listener, err = net.ListenUnix("unix", addr)
+		s.listener.SetUnlinkOnClose(true) // 删除sock文件，好像不起作用
 	} else {
 		err = fmt.Errorf("The address is not a UnixAddr object")
 	}

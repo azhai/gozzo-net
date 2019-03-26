@@ -33,7 +33,8 @@ func init() {
 func main() {
 	proxy := unix.NewProxy("tcp", "", uint16(sport))
 	addr := network.NewTCPAddr(dhost, uint16(dport))
+	relayer := unix.NewRelayer(addr)
 	events := network.Events{}
-	events.Process = proxy.CreateProcess(unix.NewRelayer(addr), unix.RelayData)
-	proxy.Run("tcp", events)
+	events.Process = proxy.CreateProcess(relayer, unix.RelayData)
+	proxy.Run(events)
 }
