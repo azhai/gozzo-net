@@ -35,10 +35,8 @@ type LocalAddrRing struct {
 
 func NewLocalAddrRing() *LocalAddrRing {
 	addrs := GetLocalAddrs()
-	return &LocalAddrRing{
-		ring:       metrics.NewRing(len(addrs)),
-		LocalAddrs: addrs,
-	}
+	ring := metrics.NewRing(len(addrs))
+	return &LocalAddrRing{ring: ring, LocalAddrs: addrs}
 }
 
 func (r *LocalAddrRing) Translate(i, stop int) {
