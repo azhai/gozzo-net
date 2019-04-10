@@ -49,6 +49,9 @@ func (s *Session) GetData(key string) (interface{}, bool) {
 // 读取字符串数据
 func (s *Session) GetString(key string) string {
 	if value, ok := s.data[key]; ok {
+		if value == nil { // 有可能发生，需单独处理
+			return ""
+		}
 		return value.(string)
 	}
 	return ""

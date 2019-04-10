@@ -64,6 +64,13 @@ func (r *LocalAddrRing) NextTCPAddr() (addr *net.TCPAddr) {
 	return
 }
 
+func (r *LocalAddrRing) GetTCPAddrs() []*net.TCPAddr {
+	if count := len(r.LocalAddrs); count > 0 {
+		r.Translate(len(r.TCPAddrs), count - 1)
+	}
+	return r.TCPAddrs
+}
+
 type IClient interface {
 	GetConn() *Conn
 	SetConn(conn *Conn)
