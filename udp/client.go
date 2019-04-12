@@ -23,6 +23,10 @@ func (c *UDPClient) Close() error {
 	return c.Conn.Close()
 }
 
+func (c *UDPClient) GetPlan() *network.DialPlan {
+	return c.dialplan
+}
+
 func (c *UDPClient) GetConn() *network.Conn {
 	return c.Conn
 }

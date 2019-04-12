@@ -31,6 +31,10 @@ func (c *UnixClient) Close() error {
 	return err
 }
 
+func (c *UnixClient) GetPlan() *network.DialPlan {
+	return c.dialplan
+}
+
 func (c *UnixClient) GetConn() *network.Conn {
 	return c.Conn
 }

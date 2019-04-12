@@ -23,6 +23,10 @@ func (c *TCPClient) Close() error {
 	return c.Conn.Close()
 }
 
+func (c *TCPClient) GetPlan() *network.DialPlan {
+	return c.dialplan
+}
+
 func (c *TCPClient) GetConn() *network.Conn {
 	return c.Conn
 }

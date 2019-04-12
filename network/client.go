@@ -72,6 +72,7 @@ func (r *LocalAddrRing) GetTCPAddrs() []*net.TCPAddr {
 }
 
 type IClient interface {
+	GetPlan() *DialPlan
 	GetConn() *Conn
 	SetConn(conn *Conn)
 	Dialing() (*Conn, error)
