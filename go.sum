@@ -1,5 +1,5 @@
-github.com/azhai/gozzo-utils v0.1.5 h1:rCgnigVMRXh7zQkL0MIj/xFjrB/TTepL7ew/bP0cP6g=
-github.com/azhai/gozzo-utils v0.1.5/go.mod h1:K3c7V4jJErZ631nN2e7OFkzTZ4BlJPBcS4PScvHTwU0=
+github.com/azhai/gozzo-utils v0.1.6 h1:Gsva6O7ECIqSb/DQhiNFL1puWjGfSRY0mdectYCqhyI=
+github.com/azhai/gozzo-utils v0.1.6/go.mod h1:K3c7V4jJErZ631nN2e7OFkzTZ4BlJPBcS4PScvHTwU0=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/felixge/tcpkeepalive v0.0.0-20160804073959-5bb0b2dea91e h1:mVIjvOd7NckIwf9J4hLB2YWXBYjhREF4vBeZXZ8mrWM=
 github.com/felixge/tcpkeepalive v0.0.0-20160804073959-5bb0b2dea91e/go.mod h1:z0yk3Pix6k848RFizhkU4uY36ts5pB1t3toBwudGbBo=
