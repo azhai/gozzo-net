@@ -105,6 +105,9 @@ func NewUnixConn(conn *net.UnixConn) *Conn {
 }
 
 func (c *Conn) Close() error {
+	if c.Session != nil {
+		c.Session.Clear()
+	}
 	if c.IsActive {
 		c.IsActive = false
 		c.ReadOnly = false

@@ -29,6 +29,11 @@ func NewSession() *Session {
 	}
 }
 
+func (s *Session) Clear() {
+	s.sid = ""
+	s.data = make(map[string]interface{})
+}
+
 func (s *Session) GetId() string {
 	return s.sid
 }
