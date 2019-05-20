@@ -1,13 +1,13 @@
 package http
 
 import (
+	orig "net/http"
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"io"
 	"io/ioutil"
-	orig "net/http"
 	"strings"
 )
 
@@ -33,6 +33,7 @@ func NewClient(prefix string) *Client {
 	return &Client{
 		Prefix:  prefix,
 		Headers: make(map[string]string),
+		Client: orig.DefaultClient,
 	}
 }
 

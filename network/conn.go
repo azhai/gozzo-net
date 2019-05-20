@@ -106,7 +106,7 @@ func NewUnixConn(conn *net.UnixConn) *Conn {
 
 func (c *Conn) Close() error {
 	if c.Session != nil {
-		c.Session.Clear()
+		// c.Session.Clear() // 多Proto情况下，需要保留App参数
 	}
 	if c.IsActive {
 		c.IsActive = false
