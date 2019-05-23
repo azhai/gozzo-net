@@ -12,14 +12,20 @@ import (
 )
 
 // 读取Response的状态码和文本内容
-func ReadResponse(resp *orig.Response, err error) (int, string) {
-	defer resp.Body.Close()
-	code := resp.StatusCode
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return code, ""
+func ReadResponse(resp *orig.Response, err error) (code int, body []byte) {
+	if resp != nil {
+		defer resp.Body.Close()
+		code = resp.StatusCode
 	}
-	return code, string(body)
+	if err != nil {
+		body = []byte(err.Error())
+		return
+	}
+	body, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+	return
 }
 
 // http或https客户端
@@ -33,7 +39,7 @@ func NewClient(prefix string) *Client {
 	return &Client{
 		Prefix:  prefix,
 		Headers: make(map[string]string),
-		Client: orig.DefaultClient,
+		Client:  orig.DefaultClient,
 	}
 }
 
@@ -60,7 +66,7 @@ func (c *Client) SetContentType(ctype string) {
 }
 
 // 通用操作
-func (c *Client) Do(method, url string, reader io.Reader) (int, string) {
+func (c *Client) Do(method, url string, reader io.Reader) (int, []byte) {
 	req, _ := orig.NewRequest(method, c.Prefix+url, reader)
 	for key, value := range c.Headers {
 		if value != "" {
@@ -70,16 +76,39 @@ func (c *Client) Do(method, url string, reader io.Reader) (int, string) {
 	return ReadResponse(c.Client.Do(req))
 }
 
+func (c *Client) DoStr(method, url string, reader io.Reader) (int, string) {
+	code, body := c.Do(method, url, reader)
+	return code, string(body)
+}
+
+// 提交JSON数据
+func (c *Client) Json(method, url string, obj, res interface{}) (int, error) {
+	var (
+		data []byte
+		err error
+	)
+	if obj != nil {
+		data, err = json.Marshal(obj)
+	}
+	c.SetContentType("application/json")
+	code, body := c.Do(method, url, bytes.NewReader(data))
+	if code == 200 && body != nil {
+		err = json.Unmarshal(body, &res)
+	}
+	return code, err
+}
+
 // GET操作
 func (c *Client) Get(url, query string) (int, string) {
 	if query != "" {
 		url += "?" + query
 	}
-	if len(c.Headers) == 0 {
-		resp, err := c.Client.Get(c.Prefix + url)
-		return ReadResponse(resp, err)
+	if len(c.Headers) > 0 {
+		return c.DoStr("GET", url, nil)
 	}
-	return c.Do("GET", url, nil)
+	resp, err := c.Client.Get(c.Prefix + url)
+	code, body := ReadResponse(resp, err)
+	return code, string(body)
 }
 
 // HEAD操作
@@ -87,7 +116,7 @@ func (c *Client) Head(url, query string) (int, string) {
 	if query != "" {
 		url += "?" + query
 	}
-	return c.Do("HEAD", url, nil)
+	return c.DoStr("HEAD", url, nil)
 }
 
 // DELETE操作
@@ -95,31 +124,21 @@ func (c *Client) Delete(url, query string) (int, string) {
 	if query != "" {
 		url += "?" + query
 	}
-	return c.Do("DELETE", url, nil)
+	return c.DoStr("DELETE", url, nil)
 }
 
 // PUT操作
 func (c *Client) Put(url string, reader io.Reader) (int, string) {
-	return c.Do("PUT", url, reader)
+	return c.DoStr("PUT", url, reader)
 }
 
 // POST操作
 func (c *Client) Post(url string, reader io.Reader) (int, string) {
-	return c.Do("POST", url, reader)
+	return c.DoStr("POST", url, reader)
 }
 
 // 提交表单
 func (c *Client) PostForm(url, data string) (int, string) {
 	c.SetContentType("application/x-www-form-urlencoded")
 	return c.Post(url, strings.NewReader(data))
-}
-
-// 提交JSON数据
-func (c *Client) PostJson(url string, obj interface{}) (int, string) {
-	c.SetContentType("application/json")
-	data, err := json.Marshal(obj)
-	if err != nil {
-		panic(err)
-	}
-	return c.Post(url, bytes.NewReader(data))
 }
