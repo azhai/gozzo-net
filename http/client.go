@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"os"
 	"strings"
 )
 
@@ -26,6 +27,70 @@ func ReadResponse(resp *orig.Response, err error) (code int, body []byte) {
 		panic(err)
 	}
 	return
+}
+
+type DecodeFunc func(body []byte) error
+
+func NewJsonDecoder(res interface{}) DecodeFunc {
+	return func(body []byte) error {
+		return json.Unmarshal(body, &res)
+	}
+}
+
+type Resource struct {
+	HttpMethod string
+	ContentType string
+	MimeType string
+	Data interface{}
+}
+
+func NewUpload(filename string) *Resource {
+	return &Resource{
+		HttpMethod: "Post",
+		ContentType: "multipart/form-data",
+		MimeType: "file",
+		Data: filename,
+	}
+}
+
+func NewJsonReq(method, mime string, obj interface{}) *Resource {
+	if mime == "" {
+		mime = "json"
+	}
+	return &Resource{
+		HttpMethod: method,
+		ContentType: "application/json",
+		MimeType: mime,
+		Data: obj,
+	}
+}
+
+func (r *Resource) GetMethod() (string, string) {
+	if r.HttpMethod == "" {
+		r.HttpMethod = "GET"
+	}
+	return r.HttpMethod, r.ContentType
+}
+
+func (r *Resource) GetReader() io.Reader {
+	if r.Data == nil {
+		return nil
+	}
+	switch r.MimeType {
+	case "bytes", "Bytes":
+		return bytes.NewReader(r.Data.([]byte))
+	case "string", "String":
+		return strings.NewReader(r.Data.(string))
+	case "file", "File", "filename", "FileName":
+		if fp, err := os.Open(r.Data.(string)); err == nil {
+			return fp
+		}
+	case "json", "JSON", "struct", "Struct":
+		if json, err := json.Marshal(r.Data); err == nil {
+			return bytes.NewReader(json)
+		}
+	}
+	return nil
 }
 
 // http或https客户端
@@ -76,39 +141,33 @@ func (c *Client) Do(method, url string, reader io.Reader) (int, []byte) {
 	return ReadResponse(c.Client.Do(req))
 }
 
-func (c *Client) DoStr(method, url string, reader io.Reader) (int, string) {
-	code, body := c.Do(method, url, reader)
-	return code, string(body)
-}
-
-// 提交JSON数据
-func (c *Client) Json(method, url string, obj, res interface{}) (int, error) {
-	var (
-		data []byte
-		err error
-	)
-	if obj != nil {
-		data, err = json.Marshal(obj)
+// 封装IO
+func (c *Client) DoWrap(url string, req *Resource, dec DecodeFunc) (int, error) {
+	var err error
+	method, reqtype := req.GetMethod()
+	if reqtype != "" {
+		c.SetContentType(reqtype)
 	}
-	c.SetContentType("application/json")
-	code, body := c.Do(method, url, bytes.NewReader(data))
-	if code == 200 && body != nil {
-		err = json.Unmarshal(body, &res)
+	code, body := c.Do(method, url, req.GetReader())
+	if code == 200 && dec != nil {
+		err = dec(body)
 	}
 	return code, err
 }
 
 // GET操作
-func (c *Client) Get(url, query string) (int, string) {
+func (c *Client) Get(url, query string) (code int, body string) {
 	if query != "" {
 		url += "?" + query
 	}
 	if len(c.Headers) > 0 {
-		return c.DoStr("GET", url, nil)
+		code, body := c.Do("GET", url, nil)
+		return code, string(body)
+	} else {
+		resp, err := c.Client.Get(c.Prefix + url)
+		code, body := ReadResponse(resp, err)
+		return code, string(body)
 	}
-	resp, err := c.Client.Get(c.Prefix + url)
-	code, body := ReadResponse(resp, err)
-	return code, string(body)
 }
 
 // HEAD操作
@@ -116,7 +175,8 @@ func (c *Client) Head(url, query string) (int, string) {
 	if query != "" {
 		url += "?" + query
 	}
-	return c.DoStr("HEAD", url, nil)
+	code, body := c.Do("HEAD", url, nil)
+	return code, string(body)
 }
 
 // DELETE操作
@@ -124,21 +184,30 @@ func (c *Client) Delete(url, query string) (int, string) {
 	if query != "" {
 		url += "?" + query
 	}
-	return c.DoStr("DELETE", url, nil)
+	code, body := c.Do("DELETE", url, nil)
+	return code, string(body)
 }
 
 // PUT操作
-func (c *Client) Put(url string, reader io.Reader) (int, string) {
-	return c.DoStr("PUT", url, reader)
+func (c *Client) Put(url string, data []byte) (int, []byte) {
+	return c.Do("PUT", url, bytes.NewReader(data))
 }
 
 // POST操作
-func (c *Client) Post(url string, reader io.Reader) (int, string) {
-	return c.DoStr("POST", url, reader)
+func (c *Client) Post(url string, data []byte) (int, []byte) {
+	return c.Do("POST", url, bytes.NewReader(data))
 }
 
 // 提交表单
 func (c *Client) PostForm(url, data string) (int, string) {
 	c.SetContentType("application/x-www-form-urlencoded")
-	return c.Post(url, strings.NewReader(data))
+	code, body := c.Post(url, []byte(data))
+	return code, string(body)
+}
+
+// 提交JSON数据
+func (c *Client) PostJson(url string, obj, res interface{}) (int, error) {
+	req := NewJsonReq("Post", "json", obj)
+	dec := NewJsonDecoder(res)
+	return c.DoWrap(url, req, dec)
 }
