@@ -1,6 +1,7 @@
 package network
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -101,9 +102,21 @@ func Reconnect(client IClient, force bool, retries int) (n int, err error) {
 }
 
 func SendData(client IClient, data []byte) (err error) {
-	if _, err = Reconnect(client, false, 3); err == nil {
-		if conn := client.GetConn(); conn != nil {
-			err = conn.QuickSend(data)
+	if conn := client.GetConn(); conn != nil {
+		err = conn.QuickSend(data)
+	} else {
+		err = fmt.Errorf("Connection is lost !")
+	}
+	return
+}
+
+func TrySendData(client IClient, data []byte, retries int) (n int, err error) {
+	for retries > 0 {
+		n, err = Reconnect(client, false, retries)
+		retries -= n
+		if err == nil {
+			err = SendData(client, data)
+			break
 		}
 	}
 	return

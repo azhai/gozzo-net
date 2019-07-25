@@ -134,6 +134,14 @@ func (c *Conn) GetRawConn() IPckConn {
 	return c.conn
 }
 
+func (c *Conn) GetLocalAddr() net.Addr {
+	return c.GetRawConn().LocalAddr()
+}
+
+func (c *Conn) GetRemoteAddr() net.Addr {
+	return c.GetRawConn().RemoteAddr()
+}
+
 func (c *Conn) GetReader() *bufio.Reader {
 	if c.reader == nil && c.IsActive {
 		c.reader = bufio.NewReader(c.conn)
