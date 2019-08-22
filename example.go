@@ -30,7 +30,7 @@ func init() {
 }
 
 // 创建代理
-func main() {
+func run() {
 	proxy := unix.NewProxy("tcp", "", uint16(sport))
 	addr := network.NewTCPAddr(dhost, uint16(dport))
 	relayer := unix.NewRelayer(addr)

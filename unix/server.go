@@ -9,7 +9,7 @@ import (
 	"runtime"
 
 	"github.com/azhai/gozzo-net/network"
-	"github.com/azhai/gozzo-utils/common"
+	"github.com/azhai/gozzo-utils/filesystem"
 )
 
 // Unix socket 服务器
@@ -46,7 +46,7 @@ func (s *UnixServer) Shutdown(events network.Events) (err error) {
 		return s.Finish(events, c)
 	})
 	filename := s.Server.Address.String()
-	if _, exists := common.FileSize(filename); exists {
+	if _, exists := filesystem.FileSize(filename); exists {
 		err = os.Remove(filename)
 	}
 	return

@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/azhai/gozzo-net/network"
-	"github.com/azhai/gozzo-utils/common"
+	"github.com/azhai/gozzo-utils/filesystem"
 )
 
 // Unix socket 客户端.
@@ -25,7 +25,7 @@ func (c *UnixClient) Close() error {
 		err = c.Conn.Close()
 	}
 	filename := c.dialplan.LocalAddr.String()
-	if _, exists := common.FileSize(filename); exists {
+	if _, exists := filesystem.FileSize(filename); exists {
 		err = os.Remove(filename)
 	}
 	return err
