@@ -1,13 +1,13 @@
 package http
 
 import (
-	orig "net/http"
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	orig "net/http"
 	"os"
 	"strings"
 )
@@ -38,18 +38,18 @@ func NewJsonDecoder(res interface{}) DecodeFunc {
 }
 
 type Resource struct {
-	HttpMethod string
+	HttpMethod  string
 	ContentType string
-	MimeType string
-	Data interface{}
+	MimeType    string
+	Data        interface{}
 }
 
 func NewUpload(filename string) *Resource {
 	return &Resource{
-		HttpMethod: "Post",
+		HttpMethod:  "Post",
 		ContentType: "multipart/form-data",
-		MimeType: "file",
-		Data: filename,
+		MimeType:    "file",
+		Data:        filename,
 	}
 }
 
@@ -58,10 +58,10 @@ func NewJsonReq(method, mime string, obj interface{}) *Resource {
 		mime = "json"
 	}
 	return &Resource{
-		HttpMethod: method,
+		HttpMethod:  method,
 		ContentType: "application/json",
-		MimeType: mime,
-		Data: obj,
+		MimeType:    mime,
+		Data:        obj,
 	}
 }
 

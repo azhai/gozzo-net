@@ -116,9 +116,9 @@ func NewUnixServer(filename string) *Server {
 	return NewAddrServer(addr)
 }
 
-func (s *Server) SetTickMicroSec(msecs int) {
-	if msecs > 0 {
-		t := time.Duration(msecs) * time.Millisecond
+func (s *Server) SetTickInterval(secs int) {
+	if secs > 0 {
+		t := time.Duration(secs) * time.Second
 		s.Ticker = time.Tick(t)
 	}
 }

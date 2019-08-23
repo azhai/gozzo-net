@@ -1,0 +1,17 @@
+[log]
+level = "debug"
+logdir = "logs"
+
+[server]
+host = "127.0.0.1"
+port = 9988
+tick = 10
+readBuffSize = 0
+
+[proto]
+readBuffSize = 128
+
+[rabbit]
+url = "amqp://admin:pass%40word@127.0.0.1:5672"
+exchange = "amq.topic"
+routings = ["test.a", "test.b", "test.c"]

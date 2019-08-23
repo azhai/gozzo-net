@@ -37,13 +37,13 @@ func NewSession(safe bool) *Session {
 	} else {
 		sess.data = new(MapData)
 	}
-	sess.data.Init()
+	_ = sess.data.Init()
 	return sess
 }
 
 func (s *Session) Clear() {
 	s.sid = ""
-	s.data.Reset()
+	_ = s.data.Reset()
 }
 
 func (s *Session) GetId() string {
@@ -81,7 +81,7 @@ func (d *MapData) Get(key string) (interface{}, bool) {
 	return nil, false
 }
 
-func (d *MapData) Put(key string, value interface{}){
+func (d *MapData) Put(key string, value interface{}) {
 	d.data[key] = value
 }
 
@@ -106,7 +106,7 @@ func (d *SafeMapData) Get(key string) (interface{}, bool) {
 	return nil, false
 }
 
-func (d *SafeMapData) Put(key string, value interface{}){
+func (d *SafeMapData) Put(key string, value interface{}) {
 	d.Store(key, value)
 }
 

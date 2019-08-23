@@ -67,7 +67,7 @@ func (r *LocalAddrRing) NextTCPAddr() (addr *net.TCPAddr) {
 
 func (r *LocalAddrRing) GetTCPAddrs() []*net.TCPAddr {
 	if count := len(r.LocalAddrs); count > 0 {
-		r.Translate(len(r.TCPAddrs), count - 1)
+		r.Translate(len(r.TCPAddrs), count-1)
 	}
 	return r.TCPAddrs
 }

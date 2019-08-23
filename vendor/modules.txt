@@ -1,6 +1,13 @@
-# github.com/azhai/gozzo-utils v0.3.2
+# github.com/BurntSushi/toml v0.3.1
+github.com/BurntSushi/toml
+# github.com/azhai/gozzo-pck v0.3.3
+github.com/azhai/gozzo-pck/match
+# github.com/azhai/gozzo-utils v0.3.3
 github.com/azhai/gozzo-utils/daemon
+github.com/azhai/gozzo-utils/common
+github.com/azhai/gozzo-utils/logging
 github.com/azhai/gozzo-utils/metrics
+github.com/azhai/gozzo-utils/queue
 github.com/azhai/gozzo-utils/filesystem
 # github.com/felixge/tcpkeepalive v0.0.0-20160804073959-5bb0b2dea91e
 github.com/felixge/tcpkeepalive
@@ -10,6 +17,19 @@ github.com/kardianos/service
 github.com/kavu/go_reuseport
 # github.com/oklog/ulid v1.3.1
 github.com/oklog/ulid
+# github.com/streadway/amqp v0.0.0-20190815230801-eade30b20f1d
+github.com/streadway/amqp
+# go.uber.org/atomic v1.4.0
+go.uber.org/atomic
+# go.uber.org/multierr v1.1.0
+go.uber.org/multierr
+# go.uber.org/zap v1.10.0
+go.uber.org/zap
+go.uber.org/zap/zapcore
+go.uber.org/zap/internal/bufferpool
+go.uber.org/zap/buffer
+go.uber.org/zap/internal/color
+go.uber.org/zap/internal/exit
 # golang.org/x/sys v0.0.0-20190204203706-41f3e6584952
 golang.org/x/sys/windows/registry
 golang.org/x/sys/windows/svc

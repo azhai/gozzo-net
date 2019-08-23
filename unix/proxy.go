@@ -45,8 +45,8 @@ func RelayData(s *network.Server, orig, relay *network.Conn) {
 
 // 转发代理
 type Proxy struct {
-	kind       string
-	Options    network.TCPOptions
+	kind    string
+	Options network.TCPOptions
 	*network.Server
 }
 

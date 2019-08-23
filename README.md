@@ -2,10 +2,18 @@
 
 ## 用途1：端口转发代理
 ```bash
-# 编译example.go中的代码
+# 编译 examples/proxy/ 目录下的代码
 ./build
-# 将6380转发到6379端口
+# 将 6380 转发到 6379 端口
 ./proxy 6380:127.0.0.1:6379
+```
+
+## 用途2：TCP Server
+```bash
+# 编译 examples/server/ 目录下的代码
+./build
+# 使用配置文件启动服务
+./server settings.toml
 ```
 
 # 服务器配置
