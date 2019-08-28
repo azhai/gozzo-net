@@ -57,10 +57,13 @@ func (s *TCPServer) Run(events network.Events) (err error) {
 	for {
 		conn, err = s.listener.AcceptTCP()
 		if err != nil {
-			continue
+			if network.IsTemporaryError(err) {
+				continue
+			}
+			return
 		}
 		c := network.NewTCPConn(conn)
-		s.Execute(events, c)
+		go s.Execute(events, c)
 	}
 	return
 }
