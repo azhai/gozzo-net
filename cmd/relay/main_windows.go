@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	name := "Gozzo_Redis_Proxy"
-	desc := "Redis端口转发代理"
+	name := "API Switcher"
+	desc := "后端API轮换代理"
 	daemon.WinMain(name, desc, run)
 }

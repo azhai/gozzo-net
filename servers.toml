@@ -1,0 +1,8 @@
+[default]
+  Host = "127.0.0.1"
+  Ports = [47258, 47369]
+  OutPort = 8181
+  Prog = "$dir/server"
+  Args = "-p $port"
+  Curr = -1
+  Pid = 0
