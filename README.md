@@ -1,17 +1,25 @@
 # gozzo 尜舟
 
+## 编译三个命令行工具
+
+Windows 下双击运行项目目录下的 WinBuild.bat
+
+Linux 下在项目目录下运行 make 
+
 ## 用途1：端口转发代理
 ```bash
-# 编译 examples/proxy/ 目录下的代码
-./build
 # 将 6380 转发到 6379 端口
 ./proxy 6380:127.0.0.1:6379
 ```
 
-## 用途2：TCP Server
+## 用途2：服务中继，类似的技术有 LVS 或 nginx upstream
 ```bash
-# 编译 examples/server/ 目录下的代码
-./build
+# 在下一个端口启动后端服务，转发到目标端口
+./relay -f servers.toml -rs -v
+```
+
+## 用途3：TCP Server
+```bash
 # 使用配置文件启动服务
 ./server settings.toml
 ```
