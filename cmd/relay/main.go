@@ -3,16 +3,16 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
 	"strconv"
 
+	"github.com/azhai/gozzo-net/cmd"
 	"github.com/azhai/gozzo-net/network"
 	"github.com/azhai/gozzo-net/unix"
 )
 
 var (
-	conf          *Config
-	app           *AppConfig
+	conf          *cmd.RelaySetting
+	app           *cmd.AppSection
 	appname       string // 应用组名称
 	filename      string // 配置文件路径
 	port          uint
@@ -50,7 +50,7 @@ func init() {
 func run() {
 	var err error
 	// 获取应用配置
-	if conf, err = GetConfig(filename); err != nil {
+	if conf, err = cmd.GetConfig(filename); err != nil {
 		if verbose {
 			fmt.Println(err)
 		}
@@ -73,12 +73,12 @@ func run() {
 
 	// 运行后端server，如果保存了前一个server的pid，先杀掉其进程
 	if relayServer || server {
-		KillProcess(app.Pid)
+		cmd.KillProcess(app.Pid)
 		strport := strconv.Itoa(int(inPort))
 		go app.RunServer(strport, verbose)
 	}
 	// 保存配置，当前端口下标和进程pid已更新
-	err = WriteConfig(filename, conf)
+	err = cmd.WriteConfig(filename, conf)
 	if err != nil {
 		if verbose {
 			fmt.Println("write error: ", err)
@@ -96,14 +96,3 @@ func run() {
 	}
 }
 
-// 根据pid杀进程
-func KillProcess(pid int) error {
-	if pid <= 0 {
-		return nil
-	}
-	proc, err := os.FindProcess(app.Pid)
-	if err == nil {
-		err = proc.Kill()
-	}
-	return err
-}

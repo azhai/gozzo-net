@@ -1,9 +1,10 @@
-package main
+package cmd
 
 import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -12,13 +13,83 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/azhai/gozzo-utils/filesystem"
+	"github.com/azhai/gozzo-utils/logging"
+	"github.com/azhai/gozzo-utils/queue"
 )
 
+/**
+***********************************************************
+* settings 配置文件解析
+***********************************************************
+**/
+
+var (
+	channel  *queue.Channel
+)
+
+type ServSetting struct {
+	Log    LogSection
+	Server ServSection
+	Proto  BuffSection
+	Rabbit MesgSection
+}
+
+// 日志配置
+type LogSection struct {
+	Level  string
+	Logdir string
+}
+
+func (c LogSection) GetLogger() *logging.Logger {
+	return logging.NewLogger(c.Level, c.Logdir)
+}
+
+// 读缓冲配置
+type BuffSection struct {
+	ReadBuffSize int // 读缓冲大小（字节）
+}
+
+func (c BuffSection) GetBuffSize() int {
+	if c.ReadBuffSize > 0 {
+		return c.ReadBuffSize
+	}
+	return 4096
+}
+
+// 服务端配置
+type ServSection struct {
+	Host string
+	Port int
+	Tick int // 打点器间隔（秒）
+	BuffSection
+}
+
+// 队列配置
+type MesgSection struct {
+	Url      string
+	Exchange string
+	Routings []string
+}
+
+func (c MesgSection) Push(id int, msg *queue.Message) error {
+	if channel == nil {
+		channel = queue.NewChannel(c.Url)
+	}
+	route := c.Routings[id%len(c.Routings)]
+	return channel.PushMessage(msg, route, c.Exchange)
+}
+
+/**
+***********************************************************
+* servers 配置文件解析
+***********************************************************
+**/
+
 // 配置，含多个应用配置
-type Config map[string]*AppConfig
+type RelaySetting map[string]*AppSection
 
 // 应用配置
-type AppConfig struct {
+type AppSection struct {
 	Host    string
 	Ports   []uint16
 	OutPort uint16 `toml:outport`
@@ -29,7 +100,7 @@ type AppConfig struct {
 }
 
 // 获取其中一个应用的配置
-func (conf Config) GetSection(name string) *AppConfig {
+func (conf RelaySetting) GetSection(name string) *AppSection {
 	if c, ok := conf[name]; ok {
 		return c
 	}
@@ -37,7 +108,7 @@ func (conf Config) GetSection(name string) *AppConfig {
 }
 
 // 计算端口，优先使用next即下一个，number为指定端口下标
-func (app *AppConfig) GetInPort(curr, next bool, number int) uint16 {
+func (app *AppSection) GetInPort(curr, next bool, number int) uint16 {
 	var size int
 	if size = len(app.Ports); size == 0 {
 		return 0
@@ -54,7 +125,7 @@ func (app *AppConfig) GetInPort(curr, next bool, number int) uint16 {
 }
 
 // 运行后端服务
-func (app *AppConfig) RunServer(port string, verbose bool) int {
+func (app *AppSection) RunServer(port string, verbose bool) int {
 	dir, _ := filepath.Abs(filesystem.GetRunDir())
 	prog := strings.ReplaceAll(app.Prog, "$dir", dir)
 	rpl := strings.NewReplacer("$port", port, "$host", app.Host)
@@ -82,8 +153,8 @@ func (app *AppConfig) RunServer(port string, verbose bool) int {
 }
 
 // 解析配置
-func GetConfig(filename string) (*Config, error) {
-	var conf = new(Config)
+func GetConfig(filename string) (*RelaySetting, error) {
+	var conf = new(RelaySetting)
 	if _, exists := filesystem.FileSize(filename); !exists {
 		return conf, fmt.Errorf("File %s is not exists !", filename)
 	}
@@ -96,11 +167,23 @@ func GetConfig(filename string) (*Config, error) {
 }
 
 // 写入配置
-func WriteConfig(filename string, conf *Config) error {
+func WriteConfig(filename string, conf *RelaySetting) error {
 	buf := new(bytes.Buffer)
 	err := toml.NewEncoder(buf).Encode(conf)
 	if err == nil {
 		err = ioutil.WriteFile(filename, buf.Bytes(), 0644)
+	}
+	return err
+}
+
+// 根据pid杀进程
+func KillProcess(pid int) error {
+	if pid <= 0 {
+		return nil
+	}
+	proc, err := os.FindProcess(pid)
+	if err == nil {
+		err = proc.Kill()
 	}
 	return err
 }
