@@ -1,15 +1,18 @@
 package network
 
 import (
+	"bufio"
 	"net"
-	"runtime"
+	//"runtime"
 	"sync"
 	"time"
+
+	"github.com/azhai/gozzo-pck/match"
 )
 
 type CloseFunc func(c *Conn) error
 type EachFunc func(k string, c *Conn) bool
-type ProcessFunc func(s *Server, c *Conn)
+type FilterFunc func(data []byte) bool
 
 // 事件集
 type Events struct {
@@ -17,10 +20,15 @@ type Events struct {
 	Serving func(s *Server)
 	Opened  func(s *Server, c *Conn) error
 	Closed  func(s *Server, c *Conn, err error)
-	Process ProcessFunc
-	Prepare func(c *Conn, input chan<- []byte) error
-	Receive func(c *Conn, data []byte, saved bool) string
-	Send    func(c *Conn, data []byte)
+	Prepare func(c *Conn) (bufio.SplitFunc, FilterFunc)
+	Receive func(c *Conn, data []byte, saved bool) (string, error)
+	Send    func(c *Conn, data []byte) error
+}
+
+// 网络临时错误，可以忽略此连接，继续接入下一个
+func IsTemporaryError(err error) bool {
+	netErr, ok := err.(net.Error)
+	return ok && netErr.Temporary()
 }
 
 // 网络连接集合
@@ -116,6 +124,15 @@ func NewUnixServer(filename string) *Server {
 	return NewAddrServer(addr)
 }
 
+// 根据设备id下发数据
+func (s *Server) SendTo(key string, data []byte) bool {
+	if c := s.LoadConn(key); c != nil {
+		c.Output <- data
+		return true
+	}
+	return false
+}
+
 func (s *Server) SetTickInterval(secs int) {
 	if secs > 0 {
 		t := time.Duration(secs) * time.Second
@@ -136,18 +153,45 @@ func (s *Server) Trigger(events Events) {
 
 func (s *Server) Execute(events Events, c *Conn) {
 	if events.Opened != nil {
-		if err := events.Opened(s, c); err != nil {
+		c.LastError = events.Opened(s, c)
+		if c.LastError != nil {
 			return
 		}
 	}
-	go func() {
+	split, filter := events.Prepare(c)
+	go func(c *Conn, s *Server){
 		defer s.Finish(events, c)
-		if events.Process != nil {
-			events.Process(s, c)
-		} else {
-			s.Process(events, c)
+		var key, saved = "", false
+		for {
+			select {
+			case data := <-c.Output:
+				if events.Send == nil {
+					continue
+				}
+				if filter == nil || filter(data) {
+					c.LastError = events.Send(c, data)
+					if c.LastError != nil {
+						return
+					}
+				}
+			case data := <-c.Input:
+				if events.Receive == nil {
+					continue
+				}
+				key, c.LastError = events.Receive(c, data, saved)
+				if c.LastError != nil {
+					return
+				}
+				if saved == false && key != "" {
+					s.SaveConn(c, key)
+					saved = true
+				}
+			}
+			//runtime.Gosched()
 		}
-	}()
+	}(c, s)
+	sp := match.NewSplitMatcher(split)
+	c.LastError = sp.SplitStream(c.GetReader(), c.Input)
 }
 
 // 关闭客户端
@@ -156,45 +200,4 @@ func (s *Server) Finish(events Events, c *Conn) error {
 		events.Closed(s, c, c.LastError)
 	}
 	return s.CloseConn(c, c.GetSessId())
-}
-
-// 根据设备id下发数据
-func (s *Server) SendTo(key string, data []byte) bool {
-	if c := s.LoadConn(key); c != nil {
-		if c.ReadOnly == false {
-			c.Output <- data
-		}
-		return true
-	}
-	return false
-}
-
-// 处理单个连接
-func (s *Server) Process(events Events, c *Conn) {
-	// 下行阶段
-	if events.Send != nil {
-		c.ReadOnly = false
-		go func(c *Conn) {
-			for data := range c.Output {
-				events.Send(c, data)
-				runtime.Gosched()
-			}
-		}(c)
-	}
-	// 上行阶段
-	if events.Prepare != nil && events.Receive != nil {
-		datach := make(chan []byte)
-		go func() {
-			var saved bool
-			for data := range datach {
-				key := events.Receive(c, data, saved)
-				if saved == false && key != "" {
-					s.SaveConn(c, key)
-					saved = true
-				}
-				runtime.Gosched()
-			}
-		}()
-		c.LastError = events.Prepare(c, datach)
-	}
 }

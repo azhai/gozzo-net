@@ -4,13 +4,25 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"os"
+	"syscall"
 	"time"
 )
 
-type IPckConn interface {
+// 网络连接，即IPConn/TCPConn/UDPConn/UnixConn
+type INetConn interface {
+	File() (f *os.File, err error)
 	SetReadBuffer(bytes int) error
 	SetWriteBuffer(bytes int) error
+	SyscallConn() (syscall.RawConn, error)
 	net.Conn
+}
+
+// 基础连接，以上除TCPConn外，同时也实现了net.PacketConn接口
+type IBaseConn interface {
+	ReadFrom(b []byte) (int, net.Addr, error)
+	WriteTo(b []byte, addr net.Addr) (int, error)
+	INetConn
 }
 
 type Options struct {
@@ -20,7 +32,7 @@ type Options struct {
 }
 
 // 设置UDP连接参数
-func (opts Options) ApplyConn(c IPckConn) (err error) {
+func (opts Options) ApplyConn(c INetConn) (err error) {
 	if opts.ReadBuffer > 0 {
 		err = c.SetReadBuffer(opts.ReadBuffer)
 	}
@@ -72,22 +84,22 @@ func (opts TCPOptions) ApplyTCP(c *net.TCPConn) (err error) {
 
 type Conn struct {
 	kind    string
-	conn    IPckConn
+	conn    INetConn
+	sysconn syscall.RawConn
 	reader  *bufio.Reader
 	Session *Session
 	// 下发指令专用，回复请直接调用Write
-	Output    chan []byte
-	ReadOnly  bool
+	Input, Output chan []byte
 	IsActive  bool
 	LastError error
 }
 
-func newConn(kind string, conn IPckConn, isActive bool) *Conn {
+func newConn(kind string, conn INetConn, isActive bool) *Conn {
 	return &Conn{
 		kind:     kind,
 		conn:     conn,
+		Input:    make(chan []byte),
 		Output:   make(chan []byte),
-		ReadOnly: true,
 		IsActive: isActive,
 	}
 }
@@ -111,7 +123,7 @@ func (c *Conn) Close() error {
 	}
 	if c.IsActive {
 		c.IsActive = false
-		c.ReadOnly = false
+		close(c.Input)
 		close(c.Output)
 		return c.conn.Close()
 	}
@@ -131,7 +143,7 @@ func (c *Conn) GetSessId() string {
 
 // 返回原始的网络连接
 // 注意：调用过Peek()操作后，原始连接不能再用于读（会丢失前n个字节）
-func (c *Conn) GetRawConn() IPckConn {
+func (c *Conn) GetRawConn() INetConn {
 	return c.conn
 }
 
@@ -143,6 +155,13 @@ func (c *Conn) GetRemoteAddr() net.Addr {
 	return c.GetRawConn().RemoteAddr()
 }
 
+func (c *Conn) Control(f func(fd uintptr)) error {
+	if c.sysconn == nil && c.IsActive {
+		c.sysconn = c.conn.SyscallConn()
+	}
+	return c.sysconn.Control(f)
+}
+
 func (c *Conn) GetReader() *bufio.Reader {
 	if c.reader == nil && c.IsActive {
 		c.reader = bufio.NewReader(c.conn)
@@ -151,7 +170,7 @@ func (c *Conn) GetReader() *bufio.Reader {
 }
 
 // 往前读n个字节，但不移动游标
-// 注意：原始conn的读游标会向前移动，所有读的地方，用GetReader()代替GetConn()
+// 注意：原始conn的读游标会向前移动，所有读的地方，用GetReader()代替GetRawConn()
 func (c *Conn) Peek(n int) ([]byte, error) {
 	return c.GetReader().Peek(n)
 }
